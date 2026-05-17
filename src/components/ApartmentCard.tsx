@@ -1,9 +1,13 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
 import { Heart, MapPin, Bed, Bath, Maximize } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Apartment, getPriceUnitLabel } from "@/data/apartments";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/AuthContext";
+import { toggleFavorite, isApartmentFavorited } from "@/services/favoritesService";
+import { useToast } from "@/hooks/use-toast";
 
 interface ApartmentCardProps {
   apartment: Apartment;
@@ -11,7 +15,56 @@ interface ApartmentCardProps {
   isFavorite?: boolean;
 }
 
-const ApartmentCard = ({ apartment, onFavoriteClick, isFavorite = false }: ApartmentCardProps) => {
+const ApartmentCard = ({ apartment, onFavoriteClick, isFavorite }: ApartmentCardProps) => {
+  const { currentUser, loading: authLoading } = useAuth();
+  const { toast } = useToast();
+  const navigate = useNavigate();
+  const [internalFav, setInternalFav] = useState<boolean>(!!isFavorite);
+  const [busy, setBusy] = useState(false);
+
+  const controlled = isFavorite !== undefined;
+  const favState = controlled ? !!isFavorite : internalFav;
+
+  useEffect(() => {
+    if (controlled || authLoading || !currentUser) return;
+    let active = true;
+    isApartmentFavorited(String(currentUser.id), apartment.id)
+      .then((v) => { if (active) setInternalFav(v); })
+      .catch(() => {});
+    return () => { active = false; };
+  }, [controlled, authLoading, currentUser, apartment.id]);
+
+  const handleFavorite = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (busy) return;
+
+    if (onFavoriteClick) {
+      onFavoriteClick(apartment.id);
+      return;
+    }
+
+    if (authLoading) return;
+    if (!currentUser) {
+      toast({ title: "تسجيل الدخول مطلوب", description: "يرجى تسجيل الدخول لإضافة الشقة إلى المفضلة" });
+      navigate("/login");
+      return;
+    }
+
+    setBusy(true);
+    const prev = internalFav;
+    setInternalFav(!prev);
+    try {
+      await toggleFavorite(apartment.id);
+      toast({ title: !prev ? "تمت الإضافة إلى المفضلة" : "تمت الإزالة من المفضلة" });
+    } catch (err: any) {
+      setInternalFav(prev);
+      toast({ title: "خطأ", description: err?.message || "حدث خطأ، يرجى المحاولة لاحقاً", variant: "destructive" });
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <Link
       to={`/apartment/${apartment.id}`}
@@ -34,18 +87,17 @@ const ApartmentCard = ({ apartment, onFavoriteClick, isFavorite = false }: Apart
 
         {/* Favorite Button */}
         <Button
+          type="button"
           variant="secondary"
           size="icon"
+          disabled={busy}
           className={cn(
             "absolute top-3 left-3 h-9 w-9 rounded-full bg-card/80 backdrop-blur-sm hover:bg-card",
-            isFavorite && "text-destructive"
+            favState && "text-destructive"
           )}
-          onClick={(e) => {
-            e.preventDefault();
-            onFavoriteClick?.(apartment.id);
-          }}
+          onClick={handleFavorite}
         >
-          <Heart className={cn("h-4 w-4", isFavorite && "fill-current")} />
+          <Heart className={cn("h-4 w-4", favState && "fill-current")} />
         </Button>
 
         {/* Price Overlay */}
