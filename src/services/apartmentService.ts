@@ -28,6 +28,8 @@ export interface Apartment {
   status: 'approved' | 'pending' | 'rejected';
   updated_at?: string;
   admin_notes?: string;
+  latitude?: number | null;
+  longitude?: number | null;
 }
 
 /** Map raw API apartment to our Apartment interface */
@@ -57,6 +59,8 @@ function mapApartment(raw: any): Apartment {
     status: raw.status || 'pending',
     updated_at: raw.updated_at,
     admin_notes: raw.admin_notes,
+    latitude: raw.latitude != null && raw.latitude !== '' ? parseFloat(raw.latitude) : null,
+    longitude: raw.longitude != null && raw.longitude !== '' ? parseFloat(raw.longitude) : null,
   };
 }
 
@@ -71,6 +75,13 @@ export const createApartment = async (data: any): Promise<string> => {
   formData.append('rooms', String(data.rooms));
   formData.append('bathrooms', String(data.bathrooms));
   formData.append('area', String(data.area));
+
+  if (typeof data.latitude === 'number' && Number.isFinite(data.latitude)) {
+    formData.append('latitude', String(data.latitude));
+  }
+  if (typeof data.longitude === 'number' && Number.isFinite(data.longitude)) {
+    formData.append('longitude', String(data.longitude));
+  }
 
   if (data.amenities?.length) {
     data.amenities.forEach((a: string, i: number) => {
@@ -100,6 +111,13 @@ export const updateApartment = async (id: string, data: any): Promise<void> => {
   if (data.rooms != null) formData.append('rooms', String(data.rooms));
   if (data.bathrooms != null) formData.append('bathrooms', String(data.bathrooms));
   if (data.area != null) formData.append('area', String(data.area));
+
+  if (typeof data.latitude === 'number' && Number.isFinite(data.latitude)) {
+    formData.append('latitude', String(data.latitude));
+  }
+  if (typeof data.longitude === 'number' && Number.isFinite(data.longitude)) {
+    formData.append('longitude', String(data.longitude));
+  }
 
   if (data.amenities?.length) {
     data.amenities.forEach((a: string, i: number) => {

@@ -3,8 +3,9 @@ import { useParams, Link } from "react-router-dom";
 import {
   ArrowRight, Heart, Share2, MapPin, Bed, Bath, Maximize, Phone,
   Eye, MousePointerClick, Calendar, Wifi, Car, Snowflake, ChefHat,
-  WashingMachine, ChevronLeft, ChevronRight,
+  WashingMachine, ChevronLeft, ChevronRight, Map as MapIcon,
 } from "lucide-react";
+import ApartmentLocationViewer from "@/components/ApartmentLocationViewer";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -282,6 +283,32 @@ const ApartmentDetail = () => {
                       <Share2 className="h-4 w-4 ml-2" />مشاركة
                     </Button>
                   </div>
+                  {typeof apartment.latitude === "number" &&
+                    typeof apartment.longitude === "number" &&
+                    Number.isFinite(apartment.latitude) &&
+                    Number.isFinite(apartment.longitude) && (
+                      <Dialog>
+                        <DialogTrigger asChild>
+                          <Button variant="outline" className="w-full mt-2">
+                            <MapIcon className="h-4 w-4 ml-2" />
+                            عرض الموقع
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent className="max-w-3xl p-4 sm:p-6">
+                          <DialogHeader>
+                            <DialogTitle>موقع الشقة</DialogTitle>
+                            <DialogDescription>
+                              {apartment.municipality}، {apartment.wilaya}
+                            </DialogDescription>
+                          </DialogHeader>
+                          <ApartmentLocationViewer
+                            latitude={apartment.latitude as number}
+                            longitude={apartment.longitude as number}
+                            title={apartment.title}
+                          />
+                        </DialogContent>
+                      </Dialog>
+                    )}
                 </div>
 
                 <div className="bg-muted rounded-xl p-4">

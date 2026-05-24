@@ -17,6 +17,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { createApartment } from "@/services/apartmentService";
 import { getVerificationStatus, uploadVerificationDocument } from "@/services/verificationService";
 import { suggestApartmentContent, AIBusyError } from "@/services/aiContentService";
+import ApartmentLocationPicker, { Coordinates } from "@/components/ApartmentLocationPicker";
 
 const amenitiesList = [
   "واي فاي", "تكييف", "تدفئة", "موقف سيارات", "مطبخ مجهز",
@@ -35,6 +36,7 @@ const AddApartment = () => {
   const [isUploading, setIsUploading] = useState(false);
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+  const [coords, setCoords] = useState<Coordinates | null>(null);
   const [formData, setFormData] = useState({
     title: "", description: "", wilayaId: "", municipality: "",
     price: "", priceUnit: "day", rooms: "", bathrooms: "", area: "",
@@ -160,6 +162,8 @@ const AddApartment = () => {
         area: parseInt(formData.area),
         amenities: formData.amenities,
         images: imageFiles,
+        latitude: coords?.latitude,
+        longitude: coords?.longitude,
       });
       toast({ title: "تم إضافة الشقة بنجاح", description: "ستظهر شقتك في نتائج البحث قريباً" });
       navigate("/dashboard");
@@ -321,6 +325,18 @@ const AddApartment = () => {
                     <Label htmlFor="municipality">البلدية</Label>
                     <Input id="municipality" placeholder="اسم البلدية" value={formData.municipality} onChange={(e) => setFormData({ ...formData, municipality: e.target.value })} required />
                   </div>
+                </div>
+
+                <div className="pt-2">
+                  <ApartmentLocationPicker
+                    value={coords}
+                    onChange={setCoords}
+                    locationQuery={
+                      wilayaName || formData.municipality
+                        ? `${formData.municipality ? formData.municipality + "، " : ""}${wilayaName}، الجزائر`.trim()
+                        : undefined
+                    }
+                  />
                 </div>
               </div>
 

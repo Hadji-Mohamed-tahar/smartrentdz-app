@@ -15,6 +15,7 @@ import Footer from "@/components/Footer";
 import { wilayas } from "@/data/wilayas";
 import { useAuth } from "@/contexts/AuthContext";
 import { getApartmentById, updateApartment } from "@/services/apartmentService";
+import ApartmentLocationPicker, { Coordinates } from "@/components/ApartmentLocationPicker";
 
 const amenitiesList = [
   "واي فاي", "تكييف", "تدفئة", "موقف سيارات", "مطبخ مجهز",
@@ -31,6 +32,8 @@ const EditApartment = () => {
   const [existingImages, setExistingImages] = useState<string[]>([]);
   const [newImageFiles, setNewImageFiles] = useState<File[]>([]);
   const [newImagePreviews, setNewImagePreviews] = useState<string[]>([]);
+  const [coords, setCoords] = useState<Coordinates | null>(null);
+  const [initialCoords, setInitialCoords] = useState<Coordinates | null>(null);
   const [formData, setFormData] = useState({
     title: "", description: "", wilayaId: "", municipality: "",
     price: "", priceUnit: "day", rooms: "", bathrooms: "", area: "",
@@ -60,6 +63,11 @@ const EditApartment = () => {
           area: apt.area.toString(),
           amenities: apt.amenities,
         });
+        if (apt.latitude != null && apt.longitude != null) {
+          const c = { latitude: apt.latitude, longitude: apt.longitude };
+          setCoords(c);
+          setInitialCoords(c);
+        }
       } catch (error) {
         console.error("Error fetching apartment:", error);
         toast({ title: "خطأ", description: "حدث خطأ أثناء تحميل بيانات الشقة", variant: "destructive" });
@@ -124,6 +132,20 @@ const EditApartment = () => {
         amenities: formData.amenities,
         images: newImageFiles.length > 0 ? newImageFiles : undefined,
         existing_images: existingImages,
+        latitude:
+          coords &&
+          (!initialCoords ||
+            coords.latitude !== initialCoords.latitude ||
+            coords.longitude !== initialCoords.longitude)
+            ? coords.latitude
+            : undefined,
+        longitude:
+          coords &&
+          (!initialCoords ||
+            coords.latitude !== initialCoords.latitude ||
+            coords.longitude !== initialCoords.longitude)
+            ? coords.longitude
+            : undefined,
       });
 
       toast({ title: "تم تحديث الشقة بنجاح" });
@@ -208,6 +230,21 @@ const EditApartment = () => {
                   <Label htmlFor="municipality">البلدية</Label>
                   <Input id="municipality" value={formData.municipality} onChange={(e) => setFormData({ ...formData, municipality: e.target.value })} required />
                 </div>
+              </div>
+              <div className="pt-2">
+                {(() => {
+                  const wName = wilayas.find((w) => w.id.toString() === formData.wilayaId)?.name || "";
+                  const query = wName || formData.municipality
+                    ? `${formData.municipality ? formData.municipality + "، " : ""}${wName}، الجزائر`.trim()
+                    : undefined;
+                  return (
+                    <ApartmentLocationPicker
+                      value={coords}
+                      onChange={setCoords}
+                      locationQuery={query}
+                    />
+                  );
+                })()}
               </div>
             </div>
 
