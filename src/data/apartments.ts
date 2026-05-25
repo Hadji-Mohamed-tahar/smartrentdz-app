@@ -25,6 +25,7 @@ export interface Apartment {
   landlordId: string;
   landlordPhone: string;
   landlordName: string;
+  distance?: number | null;
 }
 
 // بيانات وهمية للعرض

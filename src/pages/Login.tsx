@@ -27,7 +27,7 @@ const Login = () => {
       await login(formData.email, formData.password);
       toast({
         title: "تم تسجيل الدخول بنجاح",
-        description: "مرحباً بك في سَكَني",
+        description: "مرحباً بك في SmartRent",
       });
       navigate("/dashboard");
     } catch (error: any) {

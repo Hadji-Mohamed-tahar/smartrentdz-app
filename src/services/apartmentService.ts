@@ -30,6 +30,7 @@ export interface Apartment {
   admin_notes?: string;
   latitude?: number | null;
   longitude?: number | null;
+  distance?: number | null;
 }
 
 /** Map raw API apartment to our Apartment interface */
@@ -61,6 +62,7 @@ function mapApartment(raw: any): Apartment {
     admin_notes: raw.admin_notes,
     latitude: raw.latitude != null && raw.latitude !== '' ? parseFloat(raw.latitude) : null,
     longitude: raw.longitude != null && raw.longitude !== '' ? parseFloat(raw.longitude) : null,
+    distance: raw.distance != null && raw.distance !== '' ? parseFloat(raw.distance) : null,
   };
 }
 
@@ -157,6 +159,9 @@ export const getAllApartments = async (filters?: {
   min_price?: number;
   max_price?: number;
   sort_by?: string;
+  latitude?: number;
+  longitude?: number;
+  radius?: number;
 }): Promise<Apartment[]> => {
   try {
     let query = '';
@@ -169,6 +174,15 @@ export const getAllApartments = async (filters?: {
       if (filters.min_price) params.set('min_price', String(filters.min_price));
       if (filters.max_price) params.set('max_price', String(filters.max_price));
       if (filters.sort_by) params.set('sort_by', filters.sort_by);
+      if (typeof filters.latitude === 'number' && Number.isFinite(filters.latitude)) {
+        params.set('latitude', String(filters.latitude));
+      }
+      if (typeof filters.longitude === 'number' && Number.isFinite(filters.longitude)) {
+        params.set('longitude', String(filters.longitude));
+      }
+      if (typeof filters.radius === 'number' && Number.isFinite(filters.radius)) {
+        params.set('radius', String(filters.radius));
+      }
       const qs = params.toString();
       if (qs) query = `?${qs}`;
     }
@@ -179,7 +193,8 @@ export const getAllApartments = async (filters?: {
       list.map(async (item) => {
         try {
           const d = await apiGet<{ status: string; data: any }>(`/apartments/${item.id}`);
-          return mapApartment({ ...item, ...d.data });
+          // Preserve `distance` from the list response (detail endpoint doesn't return it)
+          return mapApartment({ ...item, ...d.data, distance: item.distance });
         } catch {
           return mapApartment(item);
         }

@@ -1,6 +1,6 @@
 import { Link, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { Heart, MapPin, Bed, Bath, Maximize } from "lucide-react";
+import { Heart, MapPin, Bed, Bath, Maximize, Navigation } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Apartment, getPriceUnitLabel } from "@/data/apartments";
@@ -120,6 +120,18 @@ const ApartmentCard = ({ apartment, onFavoriteClick, isFavorite }: ApartmentCard
           <MapPin className="h-4 w-4" />
           <span className="text-sm">{apartment.municipality ? `${apartment.municipality}، ` : ''}{apartment.wilaya}</span>
         </div>
+
+        {/* Distance (only when present) */}
+        {typeof apartment.distance === 'number' && Number.isFinite(apartment.distance) && (
+          <div className="flex items-center gap-1.5 text-primary">
+            <Navigation className="h-4 w-4" />
+            <span className="text-sm font-medium">
+              {apartment.distance < 1
+                ? `يبعد ${Math.round(apartment.distance * 1000)} م`
+                : `يبعد ${apartment.distance.toFixed(1)} كم`}
+            </span>
+          </div>
+        )}
 
         {/* Features */}
         {(apartment.rooms > 0 || apartment.bathrooms > 0 || apartment.area > 0) && (

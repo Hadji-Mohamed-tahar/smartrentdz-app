@@ -1,8 +1,9 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Filter, SlidersHorizontal, Grid, List } from "lucide-react";
+import { Filter, SlidersHorizontal, Grid, List, Navigation, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -16,31 +17,83 @@ import ApartmentCard from "@/components/ApartmentCard";
 import { wilayas } from "@/data/wilayas";
 import { Apartment as LocalApartment } from "@/data/apartments";
 import { getAllApartments, Apartment } from "@/services/apartmentService";
+import { useToast } from "@/hooks/use-toast";
 
 const Search = () => {
   const [searchParams, setSearchParams] = useSearchParams();
+  const { toast } = useToast();
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [priceRange, setPriceRange] = useState([0, 100000]);
   const [apartments, setApartments] = useState<Apartment[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Nearby search state
+  const [nearbyEnabled, setNearbyEnabled] = useState(false);
+  const [locating, setLocating] = useState(false);
+  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [radiusKm, setRadiusKm] = useState(15);
+
   const selectedWilaya = searchParams.get("wilaya") || "";
   const selectedPriceUnit = searchParams.get("priceUnit") || "";
   const selectedRooms = searchParams.get("rooms") || "";
 
-  useEffect(() => {
-    const fetchApartments = async () => {
-      try {
-        const data = await getAllApartments();
-        setApartments(data);
-      } catch (error) {
-        console.error("Error fetching apartments:", error);
-      } finally {
-        setLoading(false);
+  const selectedWilayaName = selectedWilaya
+    ? wilayas.find((w) => w.id.toString() === selectedWilaya)?.name
+    : "";
+
+  const fetchApartments = useCallback(async () => {
+    setLoading(true);
+    try {
+      const filters: Parameters<typeof getAllApartments>[0] = {};
+      if (selectedWilayaName) filters.wilaya = selectedWilayaName;
+      if (selectedPriceUnit) filters.price_unit = selectedPriceUnit;
+      if (selectedRooms) filters.rooms = parseInt(selectedRooms);
+      if (nearbyEnabled && coords) {
+        filters.latitude = coords.lat;
+        filters.longitude = coords.lng;
+        filters.radius = radiusKm;
+        filters.sort_by = "distance_asc";
       }
-    };
-    fetchApartments();
-  }, []);
+      const data = await getAllApartments(filters);
+      setApartments(data);
+    } catch (error) {
+      console.error("Error fetching apartments:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedWilayaName, selectedPriceUnit, selectedRooms, nearbyEnabled, coords, radiusKm]);
+
+  useEffect(() => { fetchApartments(); }, [fetchApartments]);
+
+  const handleNearbyToggle = (checked: boolean) => {
+    if (!checked) {
+      setNearbyEnabled(false);
+      setCoords(null);
+      return;
+    }
+    if (!("geolocation" in navigator)) {
+      toast({ title: "غير مدعوم", description: "متصفحك لا يدعم تحديد الموقع", variant: "destructive" });
+      return;
+    }
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        setNearbyEnabled(true);
+        setLocating(false);
+      },
+      (err) => {
+        setLocating(false);
+        setNearbyEnabled(false);
+        setCoords(null);
+        const msg = err.code === err.PERMISSION_DENIED
+          ? "تم رفض الوصول للموقع، سيتم عرض جميع الشقق"
+          : "تعذر الحصول على موقعك، سيتم عرض جميع الشقق";
+        toast({ title: "الموقع غير متاح", description: msg, variant: "destructive" });
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+    );
+  };
 
   const updateFilter = (key: string, value: string) => {
     const newParams = new URLSearchParams(searchParams);
@@ -57,28 +110,16 @@ const Search = () => {
     amenities: apt.amenities, isFeatured: apt.is_featured, isActive: apt.is_active,
     views: apt.views, phoneClicks: apt.phone_clicks, createdAt: apt.created_at,
     landlordId: apt.landlord_id, landlordPhone: apt.landlord_phone, landlordName: apt.landlord_name,
+    distance: apt.distance ?? null,
   });
 
+  // Local price-range filter only (other filters are server-side)
   const filteredApartments = useMemo(() => {
-    const selectedWilayaName = selectedWilaya
-      ? wilayas.find((w) => w.id.toString() === selectedWilaya)?.name
-      : "";
     return apartments.filter((apartment) => {
-      if (selectedWilaya) {
-        const matchesId = apartment.wilaya_id && apartment.wilaya_id.toString() === selectedWilaya;
-        const matchesName = selectedWilayaName && apartment.wilaya === selectedWilayaName;
-        if (!matchesId && !matchesName) return false;
-      }
-      if (selectedPriceUnit && apartment.price_unit && apartment.price_unit !== selectedPriceUnit) return false;
-      if (selectedRooms && apartment.rooms) {
-        const rooms = parseInt(selectedRooms);
-        if (rooms === 4 && apartment.rooms < 4) return false;
-        if (rooms !== 4 && apartment.rooms !== rooms) return false;
-      }
       if (apartment.price < priceRange[0] || apartment.price > priceRange[1]) return false;
       return true;
     });
-  }, [apartments, selectedWilaya, selectedPriceUnit, selectedRooms, priceRange]);
+  }, [apartments, priceRange]);
 
   const activeFiltersCount = [selectedWilaya, selectedPriceUnit, selectedRooms].filter(Boolean).length;
 
@@ -127,19 +168,42 @@ const Search = () => {
           <span>{priceRange[1].toLocaleString("ar-DZ")} د.ج</span>
         </div>
       </div>
-      {activeFiltersCount > 0 && (<Button variant="outline" className="w-full" onClick={clearFilters}>مسح الفلاتر</Button>)}
+
+      {/* Nearby search */}
+      <div className="space-y-3 rounded-lg border bg-muted/30 p-3">
+        <div className="flex items-center justify-between gap-2">
+          <label className="text-sm font-medium flex items-center gap-2">
+            <Navigation className="h-4 w-4 text-primary" />
+            الشقق القريبة مني
+          </label>
+          {locating ? (
+            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+          ) : (
+            <Switch checked={nearbyEnabled} onCheckedChange={handleNearbyToggle} />
+          )}
+        </div>
+        {nearbyEnabled && coords && (
+          <div className="space-y-2">
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <span>نصف القطر</span>
+              <span>{radiusKm} كم</span>
+            </div>
+            <Slider
+              value={[radiusKm]}
+              onValueChange={(v) => setRadiusKm(v[0])}
+              min={1}
+              max={100}
+              step={1}
+            />
+          </div>
+        )}
+      </div>
+
+      {(activeFiltersCount > 0 || nearbyEnabled) && (
+        <Button variant="outline" className="w-full" onClick={clearFilters}>مسح الفلاتر</Button>
+      )}
     </div>
   );
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex flex-col">
-        <Header />
-        <main className="flex-1 flex items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div></main>
-        <Footer />
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -163,10 +227,10 @@ const Search = () => {
                   <SheetTrigger asChild>
                     <Button variant="outline" className="lg:hidden">
                       <SlidersHorizontal className="h-4 w-4 ml-2" />الفلاتر
-                      {activeFiltersCount > 0 && (<Badge variant="secondary" className="mr-2">{activeFiltersCount}</Badge>)}
+                      {(activeFiltersCount + (nearbyEnabled ? 1 : 0)) > 0 && (<Badge variant="secondary" className="mr-2">{activeFiltersCount + (nearbyEnabled ? 1 : 0)}</Badge>)}
                     </Button>
                   </SheetTrigger>
-                  <SheetContent side="right" className="w-80">
+                  <SheetContent side="right" className="w-80 overflow-y-auto">
                     <SheetHeader><SheetTitle>الفلاتر</SheetTitle></SheetHeader>
                     <div className="mt-6"><FilterContent /></div>
                   </SheetContent>
@@ -187,14 +251,25 @@ const Search = () => {
                   </div>
                 </div>
               </div>
-              {activeFiltersCount > 0 && (
+              {(activeFiltersCount > 0 || nearbyEnabled) && (
                 <div className="flex flex-wrap gap-2 mb-6">
+                  {nearbyEnabled && (
+                    <Badge variant="secondary" className="gap-1">
+                      <Navigation className="h-3 w-3" />
+                      قريب مني ({radiusKm} كم)
+                      <button onClick={() => handleNearbyToggle(false)} className="mr-1 hover:text-destructive">×</button>
+                    </Badge>
+                  )}
                   {selectedWilaya && (<Badge variant="secondary" className="gap-1">{wilayas.find((w) => w.id.toString() === selectedWilaya)?.name}<button onClick={() => updateFilter("wilaya", "")} className="mr-1 hover:text-destructive">×</button></Badge>)}
                   {selectedPriceUnit && (<Badge variant="secondary" className="gap-1">{selectedPriceUnit === "day" ? "يومي" : selectedPriceUnit === "week" ? "أسبوعي" : "شهري"}<button onClick={() => updateFilter("priceUnit", "")} className="mr-1 hover:text-destructive">×</button></Badge>)}
                   {selectedRooms && (<Badge variant="secondary" className="gap-1">{selectedRooms === "1" ? "غرفة واحدة" : selectedRooms === "2" ? "غرفتان" : selectedRooms === "3" ? "3 غرف" : "4+ غرف"}<button onClick={() => updateFilter("rooms", "")} className="mr-1 hover:text-destructive">×</button></Badge>)}
                 </div>
               )}
-              {filteredApartments.length > 0 ? (
+              {loading ? (
+                <div className="flex items-center justify-center py-24">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+                </div>
+              ) : filteredApartments.length > 0 ? (
                 <div className={viewMode === "grid" ? "grid gap-6 sm:grid-cols-2 xl:grid-cols-3" : "space-y-4"}>
                   {filteredApartments.map((apartment) => (<ApartmentCard key={apartment.id} apartment={convertToLocal(apartment)} />))}
                 </div>
