@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Filter, SlidersHorizontal, Grid, List, Navigation, Loader2 } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
@@ -183,8 +184,8 @@ const Search = () => {
           )}
         </div>
         {nearbyEnabled && coords && (
-          <div className="space-y-2">
-            <div className="flex justify-between text-xs text-muted-foreground">
+          <div className="space-y-3">
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
               <span>نصف القطر</span>
               <span>{radiusKm} كم</span>
             </div>
@@ -192,9 +193,26 @@ const Search = () => {
               value={[radiusKm]}
               onValueChange={(v) => setRadiusKm(v[0])}
               min={1}
-              max={100}
+              max={9999}
               step={1}
             />
+            <div className="flex items-center gap-2">
+              <Input
+                type="number"
+                min={1}
+                value={radiusKm}
+                onChange={(e) => {
+                  const val = parseInt(e.target.value, 10);
+                  if (!isNaN(val) && val >= 1) {
+                    setRadiusKm(val);
+                  } else if (e.target.value === "") {
+                    setRadiusKm(1);
+                  }
+                }}
+                className="h-8 w-20 text-center"
+              />
+              <span className="text-sm text-muted-foreground">كم</span>
+            </div>
           </div>
         )}
       </div>

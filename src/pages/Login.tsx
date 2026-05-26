@@ -27,7 +27,7 @@ const Login = () => {
       await login(formData.email, formData.password);
       toast({
         title: "تم تسجيل الدخول بنجاح",
-        description: "مرحباً بك في SmartRent",
+        description: "مرحباً بك في سَكَني",
       });
       navigate("/dashboard");
     } catch (error: any) {
@@ -52,7 +52,7 @@ const Login = () => {
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-hero">
               <Home className="h-5 w-5 text-primary-foreground" />
             </div>
-            <span className="text-2xl font-bold text-primary">سَكَني</span>
+            <span className="text-2xl font-bold text-primary">SmartRent</span>
           </Link>
 
           {/* Header */}

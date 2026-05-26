@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowRight, Upload, X, MapPin, DollarSign, ShieldCheck, FileCheck, AlertTriangle, Sparkles, Loader2 } from "lucide-react";
+import { ArrowRight, Upload, X, MapPin, DollarSign, ShieldCheck, FileCheck, AlertTriangle, Sparkles, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,6 +18,8 @@ import { createApartment } from "@/services/apartmentService";
 import { getVerificationStatus, uploadVerificationDocument } from "@/services/verificationService";
 import { suggestApartmentContent, AIBusyError } from "@/services/aiContentService";
 import ApartmentLocationPicker, { Coordinates } from "@/components/ApartmentLocationPicker";
+import { useImageCheck } from "@/hooks/useImageCheck";
+import { cn } from "@/lib/utils";
 
 const amenitiesList = [
   "واي فاي", "تكييف", "تدفئة", "موقف سيارات", "مطبخ مجهز",
@@ -42,6 +44,8 @@ const AddApartment = () => {
     price: "", priceUnit: "day", rooms: "", bathrooms: "", area: "",
     amenities: [] as string[],
   });
+
+  const imageCheck = useImageCheck(imageFiles);
 
   useEffect(() => {
     const checkVerification = async () => {
@@ -144,6 +148,17 @@ const AddApartment = () => {
     }
     if (imageFiles.length === 0) {
       toast({ title: "خطأ", description: "يرجى إضافة صورة واحدة على الأقل", variant: "destructive" });
+      return;
+    }
+    if (imageCheck.status !== "safe") {
+      toast({
+        title: "لا يمكن النشر",
+        description:
+          imageCheck.status === "checking"
+            ? "يرجى الانتظار حتى ينتهي فحص الصور"
+            : imageCheck.message || "يجب فحص الصور أولاً والتأكد من قبولها",
+        variant: "destructive",
+      });
       return;
     }
 
@@ -257,14 +272,32 @@ const AddApartment = () => {
               <div className="bg-card rounded-xl border p-6">
                 <h2 className="font-semibold mb-4">صور الشقة</h2>
                 <div className="grid grid-cols-3 md:grid-cols-5 gap-3">
-                  {imagePreviews.map((img, idx) => (
-                    <div key={idx} className="relative aspect-square rounded-lg overflow-hidden bg-muted">
-                      <img src={img} alt="" className="h-full w-full object-cover" />
-                      <button type="button" className="absolute top-1 right-1 h-6 w-6 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center" onClick={() => removeImage(idx)}>
-                        <X className="h-3 w-3" />
-                      </button>
-                    </div>
-                  ))}
+                  {imagePreviews.map((img, idx) => {
+                    const isRejected = imageCheck.status === "rejected" && imageCheck.rejectedIndex === idx;
+                    return (
+                      <div
+                        key={idx}
+                        className={cn(
+                          "relative aspect-square rounded-lg overflow-hidden bg-muted ring-2 ring-transparent transition",
+                          isRejected && "ring-destructive ring-offset-2"
+                        )}
+                      >
+                        <img src={img} alt="" className="h-full w-full object-cover" />
+                        <button
+                          type="button"
+                          className="absolute top-1 right-1 h-6 w-6 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center"
+                          onClick={() => removeImage(idx)}
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                        {isRejected && (
+                          <div className="absolute inset-x-0 bottom-0 bg-destructive/90 text-destructive-foreground text-[10px] py-1 text-center font-medium">
+                            مرفوضة
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                   {imagePreviews.length < 10 && (
                     <label className="aspect-square rounded-lg border-2 border-dashed flex flex-col items-center justify-center cursor-pointer hover:bg-muted/50 transition-colors">
                       <Upload className="h-6 w-6 text-muted-foreground mb-1" />
@@ -274,7 +307,45 @@ const AddApartment = () => {
                   )}
                 </div>
                 <p className="text-xs text-muted-foreground mt-3">أضف حتى 10 صور للشقة. الصورة الأولى ستكون الصورة الرئيسية.</p>
+
+                {imageFiles.length > 0 && (
+                  <div className="mt-4">
+                    {imageCheck.status === "checking" && (
+                      <div className="flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm text-primary">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <span>جاري فحص الصور...</span>
+                      </div>
+                    )}
+                    {imageCheck.status === "safe" && (
+                      <div className="flex items-center gap-2 rounded-lg border border-green-500/30 bg-green-500/10 p-3 text-sm text-green-700 dark:text-green-400">
+                        <CheckCircle2 className="h-4 w-4" />
+                        <span>✓ تم قبول جميع الصور</span>
+                      </div>
+                    )}
+                    {imageCheck.status === "rejected" && (
+                      <div className="flex items-start gap-2 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+                        <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+                        <div className="flex-1">
+                          <p className="font-medium">{imageCheck.message}</p>
+                          <p className="text-xs mt-1 opacity-80">يرجى حذف الصورة المخالفة لإكمال النشر.</p>
+                        </div>
+                      </div>
+                    )}
+                    {imageCheck.status === "error" && (
+                      <div className="flex items-start gap-2 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+                        <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+                        <div className="flex-1">
+                          <p className="font-medium">{imageCheck.message}</p>
+                          <button type="button" onClick={imageCheck.recheck} className="text-xs underline mt-1">
+                            إعادة المحاولة
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
+
 
               <div className="bg-card rounded-xl border p-6 space-y-4">
                 <h2 className="font-semibold mb-4">المعلومات الأساسية</h2>
@@ -398,8 +469,24 @@ const AddApartment = () => {
               </div>
 
               <div className="flex gap-4">
-                <Button type="submit" size="lg" className="flex-1 bg-gradient-hero hover:opacity-90" disabled={isLoading}>
-                  {isLoading ? "جاري النشر..." : "نشر الشقة"}
+                <Button
+                  type="submit"
+                  size="lg"
+                  className="flex-1 bg-gradient-hero hover:opacity-90"
+                  disabled={
+                    isLoading ||
+                    imageFiles.length === 0 ||
+                    imageCheck.status === "checking" ||
+                    imageCheck.status === "rejected" ||
+                    imageCheck.status === "error" ||
+                    imageCheck.status === "idle"
+                  }
+                >
+                  {isLoading
+                    ? "جاري النشر..."
+                    : imageCheck.status === "checking"
+                    ? "جاري فحص الصور..."
+                    : "نشر الشقة"}
                 </Button>
                 <Button type="button" variant="outline" size="lg" onClick={() => navigate(-1)}>إلغاء</Button>
               </div>
